@@ -390,22 +390,22 @@ function moveOneDown(startPos) {
 
 function moveNotificationAnimation(i, done) {
   // Get notification to move
-  var notification = activeNotifications[i]
+  var notificationWindow = activeNotifications[i]
   // Calc new y position
   var newY = config.lowerRightCorner.y - config.totalHeight * (i + 1)
   // Get startPos, calc step size and start animationInterval
-  var startY = notification.y
+  var startY = notificationWindow.getPosition()[1]
   var step = (newY - startY) / config.animationSteps
   var curStep = 1
   var animationInterval = setInterval(function() {
     // Abort condition
     if (curStep === config.animationSteps) {
-      notification.setPosition(config.firstPos.x, newY)
+      notificationWindow.setPosition(config.firstPos.x, newY)
       clearInterval(animationInterval)
       return done(null, 'done')
     }
     // Move one step down
-    notification.setPosition(config.firstPos.x, startY + curStep * step)
+    notificationWindow.setPosition(config.firstPos.x, startY + curStep * step)
     curStep++
   }, config.animationStepMs)
 }
