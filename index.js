@@ -4,10 +4,8 @@ const _ = require('lodash')
 const path = require('path')
 const async = require('async')
 const electron = require('electron')
-const screen = electron.screen
 const BrowserWindow = electron.BrowserWindow
 const ipc = electron.ipcMain
-const shell = electron.shell
 
 // One animation at a time
 const AnimationQueue = function(options) {
@@ -39,8 +37,8 @@ AnimationQueue.prototype.animate = function(object) {
     }
   })
   .catch(function(err) {
-    log('node-desktop-notification encountered an error!')
-    // log('Please submit the error stack and code samples to: https://github.com/cgrossde/node-desktop-notification/issues')
+    log('electron-notify encountered an error!')
+    // log('Please submit the error stack and code samples to: https://github.com/cgrossde/electron-notify/issues')
     log(err.stack)
   })
 }
@@ -132,7 +130,7 @@ function setConfig(customConfig) {
 }
 
 function updateTemplatePath() {
-  var templatePath = path.join(__dirname, 'notification.html')
+  let templatePath = path.join(__dirname, 'notification.html')
   // Tricky stuff, sometimes this doesn't work,
   // especially when webpack is involved.
   // Check if we have a file at that location
@@ -141,8 +139,8 @@ function updateTemplatePath() {
   }
   // No file => create our own temporary notification.html
   catch (err) {
-    log('node-desktop-notification: Could not find template ("' + templatePath + '").')
-    log('node-desktop-notification: To use a different template you need to correct the config.templatePath or simply adapt config.htmlTemplate')
+    log('electron-notify: Could not find template ("' + templatePath + '").')
+    log('electron-notify: To use a different template you need to correct the config.templatePath or simply adapt config.htmlTemplate')
   }
   config.templatePath = 'file://' + templatePath
   return config.templatePath
@@ -176,20 +174,24 @@ function calcDimensions() {
   nextInsertPos.y = config.firstPos.y
 }
 
-// Use primary display only
-var display = screen.getPrimaryDisplay()
+function setupConfig() {
+  // Use primary display only
+  let display = electron.screen.getPrimaryDisplay()
 
-// Display notifications starting from lower right corner
-// Calc lower right corner
-config.lowerRightCorner = {}
-config.lowerRightCorner.x = display.bounds.x + display.workArea.x + display.workAreaSize.width
-config.lowerRightCorner.y = display.bounds.y + display.workArea.y + display.workAreaSize.height
+  // Display notifications starting from lower right corner
+  // Calc lower right corner
+  config.lowerRightCorner = {}
+  config.lowerRightCorner.x = display.bounds.x + display.workArea.x + display.workAreaSize.width
+  config.lowerRightCorner.y = display.bounds.y + display.workArea.y + display.workAreaSize.height
 
-calcDimensions()
+  calcDimensions()
 
-// Maximum amount of Notifications we can show:
-config.maxVisibleNotifications = Math.floor(display.workAreaSize.height / (config.totalHeight))
-config.maxVisibleNotifications = (config.maxVisibleNotifications > 7) ? 7 : config.maxVisibleNotifications
+  // Maximum amount of Notifications we can show:
+  config.maxVisibleNotifications = Math.floor(display.workAreaSize.height / (config.totalHeight))
+  config.maxVisibleNotifications = (config.maxVisibleNotifications > 7) ? 7 : config.maxVisibleNotifications
+}
+
+setupConfig()
 
 // Array of windows with currently showing notifications
 var activeNotifications = []
@@ -221,7 +223,7 @@ function notify(notification) {
   else {
     // Since 1.0.0 all notification parameters need to be passed
     // as object.
-    log('node-desktop-notification: ERROR notify() only accepts a single object with notification parameters.')
+    log('electron-notify: ERROR notify() only accepts a single object with notification parameters.')
   }
 }
 
@@ -261,7 +263,7 @@ function showNotification(notificationObj) {
         }
 
         // Set contents, ...
-        notificationWindow.webContents.send('node-desktop-notification-set-contents', notificationObj)
+        notificationWindow.webContents.send('electron-notify-set-contents', notificationObj)
         // Show window
         notificationWindow.showInactive()
         resolve(notificationWindow)
@@ -293,14 +295,14 @@ function buildCloseNotification(notificationWindow, notificationObj, getTimeoutI
     }
 
     // reset content
-    notificationWindow.webContents.send('node-desktop-notification-reset')
+    notificationWindow.webContents.send('electron-notify-reset')
     if (getTimeoutId && typeof getTimeoutId === 'function') {
       let timeoutId = getTimeoutId()
       clearTimeout(timeoutId)
     }
 
     // Recycle window
-    var pos = activeNotifications.indexOf(notificationWindow)
+    let pos = activeNotifications.indexOf(notificationWindow)
     activeNotifications.splice(pos, 1)
     inactiveWindows.push(notificationWindow)
     // Hide notification
@@ -326,14 +328,14 @@ function buildCloseNotificationSafely(closeFunc) {
   }
 }
 
-ipc.on('node-desktop-notification-close', function (event, winId, notificationObj) {
+ipc.on('electron-notify-close', function (event, winId, notificationObj) {
   let closeFunc = buildCloseNotification(BrowserWindow.fromId(winId), notificationObj)
   buildCloseNotificationSafely(closeFunc)('close')
 })
 
-ipc.on('node-desktop-notification-click', function (event, winId, notificationObj) {
+ipc.on('electron-notify-click', function (event, winId, notificationObj) {
   if (notificationObj.url) {
-    shell.openExternal(notificationObj.url)
+    electron.shell.openExternal(notificationObj.url)
   }
   if (notificationObj.onClickFunc) {
     let closeFunc = buildCloseNotification(BrowserWindow.fromId(winId), notificationObj)
@@ -373,12 +375,12 @@ function moveOneDown(startPos) {
       return
     }
     // Build array with index of affected notifications
-    var notificationPosArray = []
-    for (var i = startPos; i < activeNotifications.length; i++) {
+    let notificationPosArray = []
+    for (let i = startPos; i < activeNotifications.length; i++) {
       notificationPosArray.push(i)
     }
     // Start to animate all notifications at once or in parallel
-    var asyncFunc = async.map // Best performance
+    let asyncFunc = async.map // Best performance
     if (config.animateInParallel === false) {
       asyncFunc = async.mapSeries // Sluggish
     }
@@ -390,14 +392,14 @@ function moveOneDown(startPos) {
 
 function moveNotificationAnimation(i, done) {
   // Get notification to move
-  var notificationWindow = activeNotifications[i]
+  let notificationWindow = activeNotifications[i]
   // Calc new y position
-  var newY = config.lowerRightCorner.y - config.totalHeight * (i + 1)
+  let newY = config.lowerRightCorner.y - config.totalHeight * (i + 1)
   // Get startPos, calc step size and start animationInterval
-  var startY = notificationWindow.getPosition()[1]
-  var step = (newY - startY) / config.animationSteps
-  var curStep = 1
-  var animationInterval = setInterval(function() {
+  let startY = notificationWindow.getPosition()[1]
+  let step = (newY - startY) / config.animationSteps
+  let curStep = 1
+  let animationInterval = setInterval(function() {
     // Abort condition
     if (curStep === config.animationSteps) {
       notificationWindow.setPosition(config.firstPos.x, newY)
@@ -426,7 +428,7 @@ function calcInsertPos() {
 */
 function getWindow() {
   return new Promise(function(resolve, reject) {
-    var notificationWindow
+    let notificationWindow
     // Are there still inactiveWindows?
     if (inactiveWindows.length > 0) {
       notificationWindow = inactiveWindows.pop()
@@ -434,7 +436,7 @@ function getWindow() {
     }
     // Or create a new window
     else {
-      var windowProperties = config.defaultWindow
+      let windowProperties = config.defaultWindow
       windowProperties.width = config.width
       windowProperties.height = config.height
       notificationWindow = new BrowserWindow(windowProperties)
@@ -442,7 +444,7 @@ function getWindow() {
       notificationWindow.loadURL(getTemplatePath())
       notificationWindow.webContents.on('did-finish-load', function() {
         // Done
-        notificationWindow.webContents.send('node-desktop-notification-load-config', config)
+        notificationWindow.webContents.send('electron-notify-load-config', config)
         resolve(notificationWindow)
       })
     }

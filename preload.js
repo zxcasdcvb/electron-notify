@@ -53,7 +53,7 @@ function setContents(event, notificationObj) {
       }
     }
     catch (e) {
-      log('node-desktop-notification: ERROR could not find sound file: ' + notificationObj.sound.replace('file://', ''), e, e.stack)
+      log('electron-notify: ERROR could not find sound file: ' + notificationObj.sound.replace('file://', ''), e, e.stack)
     }
   }
 
@@ -77,13 +77,13 @@ function setContents(event, notificationObj) {
   let closeButton = notiDoc.getElementById('close')
   closeButton.addEventListener('click', function(event) {
     event.stopPropagation()
-    ipc.send('node-desktop-notification-close', winId, notificationObj)
+    ipc.send('electron-notify-close', winId, notificationObj)
   })
 
   // URL
   let container = notiDoc.getElementById('container')
   container.addEventListener('click', function() {
-    ipc.send('node-desktop-notification-click', winId, notificationObj)
+    ipc.send('electron-notify-click', winId, notificationObj)
   })
 }
 
@@ -94,7 +94,7 @@ function setStyleOnDomElement(styleObj, domElement) {
     }
   }
   catch (e) {
-    throw new Error('node-desktop-notification: Could not set style on domElement', styleObj, domElement)
+    throw new Error('electron-notify: Could not set style on domElement', styleObj, domElement)
   }
 }
 
@@ -114,9 +114,9 @@ function reset(event) {
   closeButton.parentNode.replaceChild(newCloseButton, closeButton)
 }
 
-ipc.on('node-desktop-notification-set-contents', setContents)
-ipc.on('node-desktop-notification-load-config', loadConfig)
-ipc.on('node-desktop-notification-reset', reset)
+ipc.on('electron-notify-set-contents', setContents)
+ipc.on('electron-notify-load-config', loadConfig)
+ipc.on('electron-notify-reset', reset)
 
 function log() {
   console.log.apply(console, arguments)
