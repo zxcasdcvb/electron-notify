@@ -337,13 +337,15 @@ ipc.on('electron-notify-click', function (event, winId, notificationObj) {
   if (notificationObj.url) {
     electron.shell.openExternal(notificationObj.url)
   }
-  if (notificationObj.onClickFunc) {
-    let closeFunc = buildCloseNotification(BrowserWindow.fromId(winId), notificationObj)
-    notificationObj.onClickFunc({
+  let notificationWindow = BrowserWindow.fromId(winId)
+  if (notificationWindow && notificationWindow.electronNotifyOnClickFunc) {
+    let closeFunc = buildCloseNotification(notificationWindow, notificationObj)
+    notificationWindow.electronNotifyOnClickFunc({
       event: 'click',
       id: notificationObj.id,
       closeNotification: buildCloseNotificationSafely(closeFunc)
     })
+    delete notificationWindow.electronNotifyOnClickFunc
   }
 })
 
