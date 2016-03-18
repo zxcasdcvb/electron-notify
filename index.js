@@ -96,8 +96,8 @@ var config = {
     cursor: 'default'
   },
   defaultWindow: {
-    'alwaysOnTop': true,
-    'skipTaskbar': process.platform == "darwin",
+    alwaysOnTop: true,
+    skipTaskbar: true,
     resizable: false,
     show: false,
     frame: false,
