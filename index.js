@@ -205,6 +205,9 @@ var notificationQueue = []
 // To prevent executing mutliple animations at once
 var animationQueue = new AnimationQueue()
 
+// To prevent double-close notification window
+var closedNotifications = {}
+
 // Give each notification a unique id
 var latestID = 0
 
@@ -293,11 +296,12 @@ function showNotification(notificationObj) {
 // Close notification function
 function buildCloseNotification(notificationWindow, notificationObj, getTimeoutId) {
   return function(event) {
-    if (notificationObj.closed) {
+    if (closedNotifications[notificationObj.id]) {
+      delete closedNotifications[notificationObj.id]
       return new Promise(function(exitEarly) { exitEarly() })
     }
     else {
-      notificationObj.closed = true
+      closedNotifications[notificationObj.id] = true
     }
 
     if (notificationWindow.electronNotifyOnCloseFunc) {
@@ -319,6 +323,7 @@ function buildCloseNotification(notificationWindow, notificationObj, getTimeoutI
     let pos = activeNotifications.indexOf(notificationWindow)
     activeNotifications.splice(pos, 1)
     inactiveWindows.push(notificationWindow)
+
     // Hide notification
     notificationWindow.hide()
 
