@@ -38,7 +38,7 @@ AnimationQueue.prototype.animate = function(object) {
   })
   .catch(function(err) {
     log('electron-notify encountered an error!')
-    // log('Please submit the error stack and code samples to: https://github.com/cgrossde/electron-notify/issues')
+    log('Please submit the error stack and code samples to: https://github.com/hankbao/electron-notify/issues')
     log(err.stack)
   })
 }
