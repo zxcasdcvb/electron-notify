@@ -262,6 +262,19 @@ function showNotification(notificationObj) {
           })
         }
 
+        // Save onClickFunc in notification window
+        if (notificationObj.onClickFunc) {
+          notificationWindow.electronNotifyOnClickFunc = notificationObj.onClickFunc
+        } else {
+          delete notificationWindow.electronNotifyOnClickFunc
+        }
+
+        if (notificationObj.onCloseFunc) {
+          notificationWindow.electronNotifyOnCloseFunc = notificationObj.onCloseFunc
+        } else {
+          delete notificationWindow.electronNotifyOnCloseFunc
+        }
+
         // Set contents, ...
         notificationWindow.webContents.send('electron-notify-set-contents', notificationObj)
         // Show window
@@ -287,11 +300,12 @@ function buildCloseNotification(notificationWindow, notificationObj, getTimeoutI
       notificationObj.closed = true
     }
 
-    if (notificationObj.onCloseFunc) {
-      notificationObj.onCloseFunc({
+    if (notificationWindow.electronNotifyOnCloseFunc) {
+      notificationWindow.electronNotifyOnCloseFunc({
         event: event,
         id: notificationObj.id
       })
+      delete notificationWindow.electronNotifyOnCloseFunc
     }
 
     // reset content
