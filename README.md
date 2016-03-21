@@ -81,7 +81,7 @@ For more info on the `onClickFunc`, `onShowFunc` and `onCloseFunc` callbacks see
 Change some config options. Can be run multiple times, also between `notify()`-calls to change *electron-notify*s behaviour.
 
 ### closeAll()
-Clears the animation queue and closes all windows opened by *electron-notify*. Call this to clean up before quiting your app. Not needed with `config.autoCleanup` enabled (default).
+Clears the animation queue and closes all windows opened by *electron-notify*. Call this to clean up before quiting your app.
 
 ### setTemplatePath(path)
 If you want to use your own `notification.html` you use this method. Use it like this: `eNotify.setTemplatePath(path.join(__dirname, 'path/to/notification.html'));`
