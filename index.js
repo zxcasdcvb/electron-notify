@@ -17,8 +17,7 @@ const AnimationQueue = function(options) {
 AnimationQueue.prototype.push = function(object) {
   if (this.running) {
     this.queue.push(object)
-  }
-  else {
+  } else {
     this.running = true
     this.animate(object)
   }
@@ -31,8 +30,7 @@ AnimationQueue.prototype.animate = function(object) {
     if (self.queue.length > 0) {
       // Run next animation
       self.animate.call(self, self.queue.shift())
-    }
-    else {
+    } else {
       self.running = false
     }
   })
@@ -136,11 +134,10 @@ function updateTemplatePath() {
   // Check if we have a file at that location
   try {
     require('fs').statSync(templatePath).isFile()
-  }
-  // No file => create our own temporary notification.html
-  catch (err) {
+  } catch (err) {
     log('electron-notify: Could not find template ("' + templatePath + '").')
     log('electron-notify: To use a different template you need to correct the config.templatePath or simply adapt config.htmlTemplate')
+     // TODO: No file => should we create our own temporary notification.html?
   }
   config.templatePath = 'file://' + templatePath
   return config.templatePath
@@ -187,8 +184,8 @@ function setupConfig() {
   calcDimensions()
 
   // Maximum amount of Notifications we can show:
-  config.maxVisibleNotifications = Math.floor(display.workAreaSize.height / (config.totalHeight))
-  config.maxVisibleNotifications = (config.maxVisibleNotifications > 7) ? 7 : config.maxVisibleNotifications
+  config.maxVisibleNotifications = Math.floor(display.workAreaSize.height / config.totalHeight)
+  config.maxVisibleNotifications = config.maxVisibleNotifications > 7 ? 7 : config.maxVisibleNotifications
 }
 
 setupConfig()
@@ -222,8 +219,7 @@ function notify(notification) {
       args: [ notification ]
     })
     return notification.id
-  }
-  else {
+  } else {
     // Since 1.0.0 all notification parameters need to be passed
     // as object.
     log('electron-notify: ERROR notify() only accepts a single object with notification parameters.')
@@ -231,7 +227,7 @@ function notify(notification) {
 }
 
 function showNotification(notificationObj) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     // Can we show it?
     if (activeNotifications.length < config.maxVisibleNotifications) {
       // Get inactiveWindow or create new:
@@ -244,7 +240,7 @@ function showNotification(notificationObj) {
         activeNotifications.push(notificationWindow)
 
         // Display time per notification basis.
-        let displayTime = (notificationObj.displayTime ? notificationObj.displayTime : config.displayTime)
+        let displayTime = notificationObj.displayTime ? notificationObj.displayTime : config.displayTime
 
         // Set timeout to hide notification
         let timeoutId
@@ -284,9 +280,7 @@ function showNotification(notificationObj) {
         notificationWindow.showInactive()
         resolve(notificationWindow)
       })
-    }
-    // Add to notificationQueue
-    else {
+    } else { // Add to notificationQueue
       notificationQueue.push(notificationObj)
       resolve()
     }
@@ -299,8 +293,7 @@ function buildCloseNotification(notificationWindow, notificationObj, getTimeoutI
     if (closedNotifications[notificationObj.id]) {
       delete closedNotifications[notificationObj.id]
       return new Promise(function(exitEarly) { exitEarly() })
-    }
-    else {
+    } else {
       closedNotifications[notificationObj.id] = true
     }
 
@@ -368,13 +361,13 @@ ipc.on('electron-notify-click', function (event, winId, notificationObj) {
   }
 })
 
-/**
+/*
 * Checks for queued notifications and add them
 * to AnimationQueue if possible
 */
 function checkForQueuedNotifications() {
   if (notificationQueue.length > 0 &&
-    (activeNotifications.length < config.maxVisibleNotifications)) {
+    activeNotifications.length < config.maxVisibleNotifications) {
     // Add new notification to animationQueue
     animationQueue.push({
       func: showNotification,
@@ -383,14 +376,14 @@ function checkForQueuedNotifications() {
   }
 }
 
-/**
+/*
 * Moves the notifications one position down,
 * starting with notification at startPos
 *
 * @param  {int} startPos
 */
 function moveOneDown(startPos) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     if (startPos >= activeNotifications || startPos === -1) {
       resolve()
       return
@@ -433,7 +426,7 @@ function moveNotificationAnimation(i, done) {
   }, config.animationStepMs)
 }
 
-/**
+/*
 * Find next possible insert position (on top)
 */
 function calcInsertPos() {
@@ -442,21 +435,19 @@ function calcInsertPos() {
   }
 }
 
-/**
+/*
 * Get a window to display a notification. Use inactiveWindows or
 * create a new window
 * @return {Window}
 */
 function getWindow() {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     let notificationWindow
     // Are there still inactiveWindows?
     if (inactiveWindows.length > 0) {
       notificationWindow = inactiveWindows.pop()
       resolve(notificationWindow)
-    }
-    // Or create a new window
-    else {
+    } else { // Or create a new window
       let windowProperties = config.defaultWindow
       windowProperties.width = config.width
       windowProperties.height = config.height
@@ -487,8 +478,8 @@ function closeAll() {
   inactiveWindows = []
 }
 
-function log(){
-  if (config.logging === true){
+function log() {
+  if (config.logging === true) {
     console.log.apply(console, arguments)
   }
 }

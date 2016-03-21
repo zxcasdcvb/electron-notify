@@ -6,7 +6,7 @@ const winId = electron.remote.getCurrentWindow().id
 
 function setStyle(config) {
   // Style it
-  let notiDoc = window.document
+  let notiDoc = global.window.document
   let container = notiDoc.getElementById('container')
   let appIcon = notiDoc.getElementById('appIcon')
   let image = notiDoc.getElementById('image')
@@ -16,8 +16,8 @@ function setStyle(config) {
   setStyleOnDomElement(config.defaultStyleContainer, container)
   // Size and radius
   let style = {
-    height: config.height - 2*config.borderRadius - 2*config.defaultStyleContainer.padding,
-    width: config.width - 2*config.borderRadius  - 2*config.defaultStyleContainer.padding,
+    height: config.height - 2 * config.borderRadius - 2 * config.defaultStyleContainer.padding,
+    width: config.width - 2 * config.borderRadius - 2 * config.defaultStyleContainer.padding,
     borderRadius: config.borderRadius + 'px'
   }
   setStyleOnDomElement(style, container)
@@ -25,8 +25,7 @@ function setStyle(config) {
   if (config.appIcon) {
     setStyleOnDomElement(config.defaultStyleAppIcon, appIcon)
     appIcon.src = config.appIcon
-  }
-  else {
+  } else {
     setStyleOnDomElement({
       display: 'none'
     }, appIcon)
@@ -48,16 +47,15 @@ function setContents(event, notificationObj) {
       // Won't check remote files e.g. http://
       if (notificationObj.sound.match(/^file\:/) !== null
       || notificationObj.sound.match(/^\//) !== null) {
-        let audio = new window.Audio(notificationObj.sound)
+        let audio = new global.window.Audio(notificationObj.sound)
         audio.play()
       }
-    }
-    catch (e) {
+    } catch (e) {
       log('electron-notify: ERROR could not find sound file: ' + notificationObj.sound.replace('file://', ''), e, e.stack)
     }
   }
 
-  let notiDoc = window.document
+  let notiDoc = global.window.document
   // Title
   let titleDoc = notiDoc.getElementById('title')
   titleDoc.innerHTML = notificationObj.title || ''
@@ -68,8 +66,7 @@ function setContents(event, notificationObj) {
   let imageDoc = notiDoc.getElementById('image')
   if (notificationObj.image) {
     imageDoc.src = notificationObj.image
-  }
-  else {
+  } else {
     setStyleOnDomElement({ display: 'none'}, imageDoc)
   }
 
@@ -92,8 +89,7 @@ function setStyleOnDomElement(styleObj, domElement) {
     for (let styleAttr in styleObj) {
       domElement.style[styleAttr] = styleObj[styleAttr]
     }
-  }
-  catch (e) {
+  } catch (e) {
     throw new Error('electron-notify: Could not set style on domElement', styleObj, domElement)
   }
 }
@@ -102,8 +98,8 @@ function loadConfig(event, conf) {
   setStyle(conf || {})
 }
 
-function reset(event) {
-  let notiDoc = window.document
+function reset() {
+  let notiDoc = global.window.document
   let container = notiDoc.getElementById('container')
   let closeButton = notiDoc.getElementById('close')
 
