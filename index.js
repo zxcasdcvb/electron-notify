@@ -47,7 +47,7 @@ AnimationQueue.prototype.clear = function() {
   this.queue = []
 }
 
-var config = {
+let config = {
   width: 300,
   height: 65,
   padding: 10,
@@ -157,7 +157,7 @@ function setTemplatePath(path) {
   config.templatePath = path
 }
 
-var nextInsertPos = {}
+let nextInsertPos = {}
 function calcDimensions() {
   // Calc totalHeight & totalWidth
   config.totalHeight = config.height + config.padding
@@ -194,22 +194,22 @@ function setupConfig() {
 setupConfig()
 
 // Array of windows with currently showing notifications
-var activeNotifications = []
+let activeNotifications = []
 
 // Recycle windows
-var inactiveWindows = []
+let inactiveWindows = []
 
 // If we cannot show all notifications, queue them
-var notificationQueue = []
+let notificationQueue = []
 
 // To prevent executing mutliple animations at once
-var animationQueue = new AnimationQueue()
+let animationQueue = new AnimationQueue()
 
 // To prevent double-close notification window
-var closedNotifications = {}
+let closedNotifications = {}
 
 // Give each notification a unique id
-var latestID = 0
+let latestID = 0
 
 function notify(notification) {
   // Is it an object and only one argument?
