@@ -199,7 +199,7 @@ Default config:
 
     The MIT License (MIT)
 
-    Copyright (c) 2016 Hank Bao (https://github.com/hankbao)
+    Copyright (c) 2016 Hank Bao <hankbao84@gmail.com> (https://github.com/hankbao)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
