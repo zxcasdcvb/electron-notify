@@ -1,12 +1,14 @@
-var _           = require('lodash'),
-    fs          = require('fs'),
-    path        = require('path'),
-    async       = require('async'),
-    Promise     = require('promise'),
-    gui         = global.window.nwDispatcher.requireNwGui()
+'use strict'
+
+const _ = require('lodash')
+const path = require('path')
+const async = require('async')
+const electron = require('electron')
+const BrowserWindow = electron.BrowserWindow
+const ipc = electron.ipcMain
 
 // One animation at a time
-var AnimationQueue = function(options) {
+const AnimationQueue = function(options) {
   this.options = options
   this.queue = []
   this.running = false
@@ -15,28 +17,26 @@ var AnimationQueue = function(options) {
 AnimationQueue.prototype.push = function(object) {
   if (this.running) {
     this.queue.push(object)
-  }
-  else {
+  } else {
     this.running = true
     this.animate(object)
   }
 }
 
 AnimationQueue.prototype.animate = function(object) {
-  var self = this
+  let self = this
   object.func.apply(null, object.args)
   .then(function() {
     if (self.queue.length > 0) {
       // Run next animation
       self.animate.call(self, self.queue.shift())
-    }
-    else {
+    } else {
       self.running = false
     }
   })
   .catch(function(err) {
-    log('nw-notify encountered an error!')
-    log('Please submit the error stack and code samples to: https://github.com/cgrossde/nw-notify/issues')
+    log('electron-notify encountered an error!')
+    log('Please submit the error stack and code samples to: https://github.com/hankbao/electron-notify/issues')
     log(err.stack)
   })
 }
@@ -45,7 +45,7 @@ AnimationQueue.prototype.clear = function() {
   this.queue = []
 }
 
-var config = {
+let config = {
   width: 300,
   height: 65,
   padding: 10,
@@ -56,7 +56,6 @@ var config = {
   animateInParallel: true,
   appIcon: null,
   pathToModule: '',
-  autoCleanup: true, // Auto cleanup
   logging: true,
   defaultStyleContainer: {
     backgroundColor: '#f0f0f0',
@@ -95,14 +94,17 @@ var config = {
     cursor: 'default'
   },
   defaultWindow: {
-    'always-on-top': true,
-    'visible-on-all-workspaces': true,
-    'show_in_taskbar': process.platform == "darwin",
+    alwaysOnTop: true,
+    skipTaskbar: true,
     resizable: false,
     show: false,
     frame: false,
     transparent: true,
-    toolbar: false
+    acceptFirstMouse: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      allowDisplayingInsecureContent: true
+    }
   },
   htmlTemplate: '<html>\n'
   + '<head></head>\n'
@@ -125,51 +127,19 @@ function setConfig(customConfig) {
   calcDimensions()
 }
 
-// Little helper functions
-function updateAppPath() {
-  // Get url of current page in nwjs
-  var pathToAppIndex = window.location.href
-  // Remove everything after '#'
-  var urlParts = pathToAppIndex.split('#')
-  pathToAppIndex = urlParts[0]
-  var pathSegemnts = pathToAppIndex.split('/')
-  // Remove last part (e.g. index.html of app)
-  pathSegemnts.pop()
-  config.appPath = pathSegemnts.join('/') + '/'
-  return config.appPath
-}
-
-function getAppPath() {
-  if (config.appPath === undefined) {
-    return updateAppPath()
-  }
-  return config.appPath
-}
-
 function updateTemplatePath() {
-  var scriptPath = path.join(__dirname, 'notification.html')
+  let templatePath = path.join(__dirname, 'notification.html')
   // Tricky stuff, sometimes this doesn't work,
   // especially when webpack is involved.
   // Check if we have a file at that location
   try {
-    fs.statSync(scriptPath).isFile()
+    require('fs').statSync(templatePath).isFile()
+  } catch (err) {
+    log('electron-notify: Could not find template ("' + templatePath + '").')
+    log('electron-notify: To use a different template you need to correct the config.templatePath or simply adapt config.htmlTemplate')
+     // TODO: No file => should we create our own temporary notification.html?
   }
-  // No file => create our own temporary notification.html
-  catch (err) {
-    log('nw-notify: Could not find template ("' + scriptPath + '"). Fallback to writing my own template file.')
-    log('nw-notify: To use a different template you need to correct the config.templatePath or simply adapt config.htmlTemplate')
-    // Fallback to config.htmlTemplate: Place text
-    // in file within working path and use that
-    scriptPath = path.join(path.resolve(path.dirname()), 'notification.html')
-    try {
-      fs.writeFileSync(scriptPath, config.htmlTemplate)
-    }
-    // Failed to write file
-    catch (e) {
-      log('nw-notify: Failed writing my own file. nw-notify will not work.', e, e.stack)
-    }
-  }
-  config.templatePath = 'file://' + scriptPath
+  config.templatePath = 'file://' + templatePath
   return config.templatePath
 }
 
@@ -184,7 +154,7 @@ function setTemplatePath(path) {
   config.templatePath = path
 }
 
-var nextInsertPos = {}
+let nextInsertPos = {}
 function calcDimensions() {
   // Calc totalHeight & totalWidth
   config.totalHeight = config.height + config.padding
@@ -201,49 +171,42 @@ function calcDimensions() {
   nextInsertPos.y = config.firstPos.y
 }
 
-// Init screen to gather some information
-gui.Screen.Init()
-var screens = gui.Screen.screens
+function setupConfig() {
+  // Use primary display only
+  let display = electron.screen.getPrimaryDisplay()
 
-// Use first screen only
-var cur_screen = screens[0]
+  // Display notifications starting from lower right corner
+  // Calc lower right corner
+  config.lowerRightCorner = {}
+  config.lowerRightCorner.x = display.bounds.x + display.workArea.x + display.workAreaSize.width
+  config.lowerRightCorner.y = display.bounds.y + display.workArea.y + display.workAreaSize.height
 
-// detect primary screen if more than 1 screen
-if (screens.length > 0) {
-   for (var i=0; j=screens.length,i<j; i++){
-      if (screens[i].bounds.x === 0 && screens[i].bounds.y === 0) {
-          cur_screen = screens[i]
-      }
-   }
+  calcDimensions()
+
+  // Maximum amount of Notifications we can show:
+  config.maxVisibleNotifications = Math.floor(display.workAreaSize.height / config.totalHeight)
+  config.maxVisibleNotifications = config.maxVisibleNotifications > 7 ? 7 : config.maxVisibleNotifications
 }
 
-
-// Display notifications starting from lower right corner
-// Calc lower right corner
-config.lowerRightCorner = {}
-config.lowerRightCorner.x = cur_screen.bounds.x + cur_screen.work_area.x + cur_screen.work_area.width
-config.lowerRightCorner.y = cur_screen.bounds.y + cur_screen.work_area.y + cur_screen.work_area.height
-
-calcDimensions()
-
-// Maximum amount of Notifications we can show:
-config.maxVisibleNotifications = Math.floor(cur_screen.work_area.height / (config.totalHeight))
-config.maxVisibleNotifications = (config.maxVisibleNotifications > 7) ? 7 : config.maxVisibleNotifications
+setupConfig()
 
 // Array of windows with currently showing notifications
-var activeNotifications = []
+let activeNotifications = []
 
 // Recycle windows
-var inactiveWindows = []
+let inactiveWindows = []
 
 // If we cannot show all notifications, queue them
-var notificationQueue = []
+let notificationQueue = []
 
 // To prevent executing mutliple animations at once
-var animationQueue = new AnimationQueue()
+let animationQueue = new AnimationQueue()
+
+// To prevent double-close notification window
+let closedNotifications = {}
 
 // Give each notification a unique id
-var latestID = 0
+let latestID = 0
 
 function notify(notification) {
   // Is it an object and only one argument?
@@ -256,113 +219,38 @@ function notify(notification) {
       args: [ notification ]
     })
     return notification.id
-  }
-  else {
+  } else {
     // Since 1.0.0 all notification parameters need to be passed
     // as object.
-    log('nw-notify: ERROR since version 1.0.0 notify() only accepts a single object with notification parameters. The use of notify(title, text, ...) was deprecated and removed.')
+    log('electron-notify: ERROR notify() only accepts a single object with notification parameters.')
   }
 }
 
 function showNotification(notificationObj) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     // Can we show it?
     if (activeNotifications.length < config.maxVisibleNotifications) {
       // Get inactiveWindow or create new:
       getWindow().then(function(notificationWindow) {
         // Move window to position
         calcInsertPos()
-        notificationWindow.moveTo(nextInsertPos.x, nextInsertPos.y)
+        notificationWindow.setPosition(nextInsertPos.x, nextInsertPos.y)
 
         // Add to activeNotifications
         activeNotifications.push(notificationWindow)
 
-        // Close notification function
-        var closeNotification = function closeNotification(event) {
-          if (notificationObj.closed) {
-            //console.log('Already closed')
-            return new Promise(function(exitEarly) { exitEarly() })
-          }
-          else {
-            notificationObj.closed = true
-          }
-
-          if (notificationObj.onCloseFunc) {
-            notificationObj.onCloseFunc({
-              event: event,
-              id: notificationObj.id
-            })
-          }
-
-          // Remove event listener
-          var newContainer = container.cloneNode(true)
-          container.parentNode.replaceChild(newContainer, container)
-          clearTimeout(closeTimeout)
-          var newCloseButton = closeButton.cloneNode(true)
-          closeButton.parentNode.replaceChild(newCloseButton, closeButton)
-          // Recycle window
-          var pos = activeNotifications.indexOf(notificationWindow)
-          activeNotifications.splice(pos, 1)
-          inactiveWindows.push(notificationWindow)
-          // Hide notification
-          notificationWindow.hide()
-
-          checkForQueuedNotifications()
-
-          // Move notifications down
-          return moveOneDown(pos)
-        }
-
-        // Always add to animationQueue to prevent erros (e.g. notification
-        // got closed while it was moving will produce an error)
-        var closeNotificationSafely = function(reason) {
-          if (reason === undefined)
-              reason = 'closedByAPI'
-          animationQueue.push({
-            func: closeNotification,
-            args: [ reason ]
-          })
-        }
-
-
         // Display time per notification basis.
-        var displayTime = (notificationObj.displayTime ? notificationObj.displayTime : config.displayTime);
+        let displayTime = notificationObj.displayTime ? notificationObj.displayTime : config.displayTime
 
         // Set timeout to hide notification
-        var closeTimeout = setTimeout(function() {
+        let timeoutId
+        let closeFunc = buildCloseNotification(notificationWindow, notificationObj, function() {
+          return timeoutId
+        })
+        let closeNotificationSafely = buildCloseNotificationSafely(closeFunc)
+        timeoutId = setTimeout(function() {
           closeNotificationSafely('timeout')
         }, displayTime)
-
-        // Close button
-        var notiDoc = notificationWindow.window.document
-        var closeButton = notiDoc.getElementById('close')
-        closeButton.addEventListener('click',function(event) {
-          event.stopPropagation()
-          closeNotificationSafely('close')
-        })
-
-        // URL
-        var container = notiDoc.getElementById('container')
-        if (notificationObj.url || notificationObj.onClickFunc) {
-          container.addEventListener('click', function() {
-            if (notificationObj.url) {
-              gui.Shell.openExternal(notificationObj.url)
-            }
-            if (notificationObj.onClickFunc) {
-              notificationObj.onClickFunc({
-                event: 'click',
-                id: notificationObj.id,
-                closeNotification: closeNotificationSafely
-              })
-            }
-          })
-        }
-
-        // Set contents, ...
-        setNotficationContents(notiDoc, notificationObj)
-
-        // Show window
-        notificationWindow.show()
 
         // Trigger onShowFunc if existent
         if (notificationObj.onShowFunc) {
@@ -372,61 +260,114 @@ function showNotification(notificationObj) {
             closeNotification: closeNotificationSafely
           })
         }
+
+        // Save onClickFunc in notification window
+        if (notificationObj.onClickFunc) {
+          notificationWindow.electronNotifyOnClickFunc = notificationObj.onClickFunc
+        } else {
+          delete notificationWindow.electronNotifyOnClickFunc
+        }
+
+        if (notificationObj.onCloseFunc) {
+          notificationWindow.electronNotifyOnCloseFunc = notificationObj.onCloseFunc
+        } else {
+          delete notificationWindow.electronNotifyOnCloseFunc
+        }
+
+        // Set contents, ...
+        notificationWindow.webContents.send('electron-notify-set-contents', notificationObj)
+        // Show window
+        notificationWindow.showInactive()
         resolve(notificationWindow)
       })
-    }
-    // Add to notificationQueue
-    else {
+    } else { // Add to notificationQueue
       notificationQueue.push(notificationObj)
       resolve()
     }
   })
 }
 
-function setNotficationContents(notiDoc, notificationObj) {
-
-  // sound
-  if (notificationObj.sound) {
-    // Check if file is accessible
-    try {
-      // If it's a local file, check it's existence
-      // Won't check remote files e.g. http://
-      if (notificationObj.sound.match(/^file\:/) !== null
-        || notificationObj.sound.match(/^\//) !== null) {
-        fs.statSync(notificationObj.sound.replace('file://', '')).isFile()
-      }
-      var audio = new window.Audio(notificationObj.sound)
-      audio.play()
+// Close notification function
+function buildCloseNotification(notificationWindow, notificationObj, getTimeoutId) {
+  return function(event) {
+    if (closedNotifications[notificationObj.id]) {
+      delete closedNotifications[notificationObj.id]
+      return new Promise(function(exitEarly) { exitEarly() })
+    } else {
+      closedNotifications[notificationObj.id] = true
     }
-    catch (e) {
-      log('nw-notify: ERROR could not find sound file: ' + notificationObj.sound.replace('file://', ''), e, e.stack)
+
+    if (notificationWindow.electronNotifyOnCloseFunc) {
+      notificationWindow.electronNotifyOnCloseFunc({
+        event: event,
+        id: notificationObj.id
+      })
+      delete notificationWindow.electronNotifyOnCloseFunc
     }
-  }
 
-  // Title
-  var titleDoc = notiDoc.getElementById('title')
-  titleDoc.innerHTML = notificationObj.title || ''
-  // message
-  var messageDoc = notiDoc.getElementById('message')
-  messageDoc.innerHTML = notificationObj.text || ''
-  // Image
-  var imageDoc = notiDoc.getElementById('image')
-  if (notificationObj.image) {
-    imageDoc.src = notificationObj.image
-  }
-  else {
-    setStyleOnDomElement({ display: 'none'}, imageDoc)
-  }
+    // reset content
+    notificationWindow.webContents.send('electron-notify-reset')
+    if (getTimeoutId && typeof getTimeoutId === 'function') {
+      let timeoutId = getTimeoutId()
+      clearTimeout(timeoutId)
+    }
 
+    // Recycle window
+    let pos = activeNotifications.indexOf(notificationWindow)
+    activeNotifications.splice(pos, 1)
+    inactiveWindows.push(notificationWindow)
+
+    // Hide notification
+    notificationWindow.hide()
+
+    checkForQueuedNotifications()
+
+    // Move notifications down
+    return moveOneDown(pos)
+  }
 }
 
-/**
- * Checks for queued notifications and add them
- * to AnimationQueue if possible
- */
+// Always add to animationQueue to prevent erros (e.g. notification
+// got closed while it was moving will produce an error)
+function buildCloseNotificationSafely(closeFunc) {
+  return function(reason) {
+    if (reason === undefined)
+    reason = 'closedByAPI'
+    animationQueue.push({
+      func: closeFunc,
+      args: [ reason ]
+    })
+  }
+}
+
+ipc.on('electron-notify-close', function (event, winId, notificationObj) {
+  let closeFunc = buildCloseNotification(BrowserWindow.fromId(winId), notificationObj)
+  buildCloseNotificationSafely(closeFunc)('close')
+})
+
+ipc.on('electron-notify-click', function (event, winId, notificationObj) {
+  if (notificationObj.url) {
+    electron.shell.openExternal(notificationObj.url)
+  }
+  let notificationWindow = BrowserWindow.fromId(winId)
+  if (notificationWindow && notificationWindow.electronNotifyOnClickFunc) {
+    let closeFunc = buildCloseNotification(notificationWindow, notificationObj)
+    notificationWindow.electronNotifyOnClickFunc({
+      event: 'click',
+      id: notificationObj.id,
+      closeNotification: buildCloseNotificationSafely(closeFunc)
+    })
+    delete notificationWindow.electronNotifyOnClickFunc
+  }
+})
+
+/*
+* Checks for queued notifications and add them
+* to AnimationQueue if possible
+*/
 function checkForQueuedNotifications() {
   if (notificationQueue.length > 0 &&
-    (activeNotifications.length < config.maxVisibleNotifications)) {
+    activeNotifications.length < config.maxVisibleNotifications) {
     // Add new notification to animationQueue
     animationQueue.push({
       func: showNotification,
@@ -435,25 +376,25 @@ function checkForQueuedNotifications() {
   }
 }
 
-/**
- * Moves the notifications one position down,
- * starting with notification at startPos
- *
- * @param  {int} startPos
- */
+/*
+* Moves the notifications one position down,
+* starting with notification at startPos
+*
+* @param  {int} startPos
+*/
 function moveOneDown(startPos) {
-  return new Promise(function(resolve, reject) {
+  return new Promise(function(resolve) {
     if (startPos >= activeNotifications || startPos === -1) {
       resolve()
       return
     }
     // Build array with index of affected notifications
-    var notificationPosArray = []
-    for (var i = startPos; i < activeNotifications.length; i++) {
+    let notificationPosArray = []
+    for (let i = startPos; i < activeNotifications.length; i++) {
       notificationPosArray.push(i)
     }
     // Start to animate all notifications at once or in parallel
-    var asyncFunc = async.map // Best performance
+    let asyncFunc = async.map // Best performance
     if (config.animateInParallel === false) {
       asyncFunc = async.mapSeries // Sluggish
     }
@@ -465,104 +406,61 @@ function moveOneDown(startPos) {
 
 function moveNotificationAnimation(i, done) {
   // Get notification to move
-  var notification = activeNotifications[i]
+  let notificationWindow = activeNotifications[i]
   // Calc new y position
-  var newY = config.lowerRightCorner.y - config.totalHeight * (i + 1)
+  let newY = config.lowerRightCorner.y - config.totalHeight * (i + 1)
   // Get startPos, calc step size and start animationInterval
-  var startY = notification.y
-  var step = (newY-startY)/config.animationSteps
-  var curStep = 1
-  var animationInterval = setInterval(function() {
+  let startY = notificationWindow.getPosition()[1]
+  let step = (newY - startY) / config.animationSteps
+  let curStep = 1
+  let animationInterval = setInterval(function() {
     // Abort condition
     if (curStep === config.animationSteps) {
-      notification.moveTo(config.firstPos.x, newY)
+      notificationWindow.setPosition(config.firstPos.x, newY)
       clearInterval(animationInterval)
       return done(null, 'done')
     }
     // Move one step down
-    notification.moveTo(config.firstPos.x, startY + curStep * step)
+    notificationWindow.setPosition(config.firstPos.x, startY + curStep * step)
     curStep++
   }, config.animationStepMs)
 }
 
-/**
- * Find next possible insert position (on top)
- */
+/*
+* Find next possible insert position (on top)
+*/
 function calcInsertPos() {
   if (activeNotifications.length < config.maxVisibleNotifications) {
     nextInsertPos.y = config.lowerRightCorner.y - config.totalHeight * (activeNotifications.length + 1)
   }
 }
 
-/**
- * Get a window to display a notification. Use inactiveWindows or
- * create a new window
- * @return {Window}
- */
+/*
+* Get a window to display a notification. Use inactiveWindows or
+* create a new window
+* @return {Window}
+*/
 function getWindow() {
-  return new Promise(function(resolve, reject) {
-    var notificationWindow
+  return new Promise(function(resolve) {
+    let notificationWindow
     // Are there still inactiveWindows?
     if (inactiveWindows.length > 0) {
       notificationWindow = inactiveWindows.pop()
       resolve(notificationWindow)
-    }
-    // Or create a new window
-    else {
-      var windowProperties = config.defaultWindow
+    } else { // Or create a new window
+      let windowProperties = config.defaultWindow
       windowProperties.width = config.width
       windowProperties.height = config.height
-      notificationWindow = gui.Window.open(getTemplatePath(), config.defaultWindow)
+      notificationWindow = new BrowserWindow(windowProperties)
+      notificationWindow.setVisibleOnAllWorkspaces(true)
+      notificationWindow.loadURL(getTemplatePath())
+      notificationWindow.webContents.on('did-finish-load', function() {
+        // Done
+        notificationWindow.webContents.send('electron-notify-load-config', config)
+        resolve(notificationWindow)
+      })
     }
-    // Return once DOM is loaded
-    notificationWindow.on('loaded', function() {
-      // Style it
-      var notiDoc = notificationWindow.window.document
-      var container = notiDoc.getElementById('container')
-      var appIcon = notiDoc.getElementById('appIcon')
-      var image = notiDoc.getElementById('image')
-      var close = notiDoc.getElementById('close')
-      var message = notiDoc.getElementById('message')
-      // Default style
-      setStyleOnDomElement(config.defaultStyleContainer, container)
-      // Size and radius
-      var style = {
-        height: config.height - 2*config.borderRadius - 2*config.defaultStyleContainer.padding,
-        width: config.width - 2*config.borderRadius  - 2*config.defaultStyleContainer.padding,
-        borderRadius: config.borderRadius + 'px'
-      }
-      setStyleOnDomElement(style, container)
-      // Style appIcon or hide
-      if (config.appIcon) {
-        setStyleOnDomElement(config.defaultStyleAppIcon, appIcon)
-        appIcon.src = config.appIcon
-      }
-      else {
-        setStyleOnDomElement({
-          display: 'none'
-        }, appIcon)
-      }
-      // Style image
-      setStyleOnDomElement(config.defaultStyleImage, image)
-      // Style close button
-      setStyleOnDomElement(config.defaultStyleClose, close)
-      // Remove margin from text p
-      setStyleOnDomElement(config.defaultStyleText, message)
-      // Done
-      resolve(notificationWindow)
-    })
   })
-}
-
-function setStyleOnDomElement(styleObj, domElement){
-  try {
-    for (var styleAttr in styleObj){
-      domElement.style[styleAttr] = styleObj[styleAttr]
-    }
-  }
-  catch (e) {
-    throw new Error('nw-notify: Could not set style on domElement', styleObj, domElement)
-  }
 }
 
 function closeAll() {
@@ -580,25 +478,14 @@ function closeAll() {
   inactiveWindows = []
 }
 
-function log(){
-  if (config.logging === true){
-      console.log.apply(console, arguments)
+function log() {
+  if (config.logging === true) {
+    console.log.apply(console, arguments)
   }
 }
 
-/**
- * Auto cleanup
- */
-gui.Window.get().on('close', function() {
-  if (config.autoCleanup) {
-    closeAll()
-    gui.App.quit()
-  }
-})
-
 module.exports.notify = notify
 module.exports.setConfig = setConfig
-module.exports.getAppPath = getAppPath
 module.exports.getTemplatePath = getTemplatePath
 module.exports.setTemplatePath = setTemplatePath
 module.exports.closeAll = closeAll
