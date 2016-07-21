@@ -179,7 +179,7 @@ Default config:
     },
     defaultWindow: {
       alwaysOnTop: true,
-      skipTaskbar: true
+      skipTaskbar: true,
       resizable: false,
       show: false,
       frame: false,
