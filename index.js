@@ -421,7 +421,7 @@ function moveNotificationAnimation(i, done) {
       return done(null, 'done')
     }
     // Move one step down
-    notificationWindow.setPosition(config.firstPos.x, startY + curStep * step)
+    notificationWindow.setPosition(config.firstPos.x, Math.trunc(startY + curStep * step))
     curStep++
   }, config.animationStepMs)
 }
