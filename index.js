@@ -1,6 +1,5 @@
 'use strict'
 
-const _ = require('lodash')
 const path = require('path')
 const async = require('async')
 const electron = require('electron')
@@ -123,7 +122,7 @@ let config = {
 }
 
 function setConfig(customConfig) {
-  config = _.defaults(customConfig, config)
+  config = Object.assign(config, customConfig)
   calcDimensions()
 }
 
@@ -466,12 +465,8 @@ function getWindow() {
 function closeAll() {
   // Clear out animation Queue and close windows
   animationQueue.clear()
-  _.forEach(activeNotifications, function(window) {
-    window.close()
-  })
-  _.forEach(inactiveWindows, function(window) {
-    window.close()
-  })
+  activeNotifications.forEach(window => window.close())
+  inactiveWindows.forEach(window => window.close())
   // Reset certain vars
   nextInsertPos = {}
   activeNotifications = []
